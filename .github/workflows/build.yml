@@ -1,0 +1,92 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS (Apple Silicon)
+          - os: macos-13
+            name: macOS (Intel)
+          - os: windows-latest
+            name: Windows
+          - os: ubuntu-22.04
+            name: Linux
+
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # ── Linux ──────────────────────────────────────────────────────────
+      - name: Linux deps
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libssh2-1-dev
+
+      # ── macOS ──────────────────────────────────────────────────────────
+      - name: macOS deps
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew install libssh2 openssl@3
+          echo "PKG_CONFIG_PATH=$(brew --prefix libssh2)/lib/pkgconfig:$(brew --prefix openssl@3)/lib/pkgconfig" >> $GITHUB_ENV
+          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
+
+      # ── Windows ────────────────────────────────────────────────────────
+      - name: Windows deps
+        if: matrix.os == 'windows-latest'
+        run: |
+          vcpkg install libssh2:x64-windows-static openssl:x64-windows-static
+          echo "LIBSSH2_STATIC=1" >> $env:GITHUB_ENV
+          echo "LIBSSH2_INCLUDE_DIR=C:\vcpkg\installed\x64-windows-static\include" >> $env:GITHUB_ENV
+          echo "LIBSSH2_LIB_DIR=C:\vcpkg\installed\x64-windows-static\lib" >> $env:GITHUB_ENV
+          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+          echo "OPENSSL_DIR=C:\vcpkg\installed\x64-windows-static" >> $env:GITHUB_ENV
+
+      # ── Build ──────────────────────────────────────────────────────────
+      - run: npm install
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: FoltSSH ${{ github.ref_name }}
+          releaseBody: |
+            | Platform | Файл |
+            |----------|------|
+            | macOS Apple Silicon | `FoltSSH_*_aarch64.dmg` |
+            | macOS Intel | `FoltSSH_*_x64.dmg` |
+            | Windows | `FoltSSH_*_x64-setup.exe` |
+            | Linux | `folt-ssh_*_amd64.AppImage` |
+          releaseDraft: true
