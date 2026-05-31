@@ -452,6 +452,11 @@ pub struct LocalEntry {
 }
 
 #[tauri::command]
+fn get_home_dir() -> Option<String> {
+    dirs::home_dir().map(|p| p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
 fn fs_read_local(path: String) -> Result<String, String> {
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
     Ok(B64.encode(&bytes))
@@ -562,7 +567,7 @@ pub fn run() {
             shell_open, shell_write, shell_resize, shell_close,
             sftp_list, sftp_exists, sftp_mkdir, sftp_rm, sftp_rmdir,
             sftp_rename, sftp_read, sftp_write, sftp_rm_all,
-            fs_read_local, fs_list_local,
+            fs_read_local, fs_list_local, get_home_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

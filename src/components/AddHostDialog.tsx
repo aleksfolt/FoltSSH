@@ -3,15 +3,17 @@ import { X } from 'lucide-react';
 import { HostConfig, AuthMethod } from '../types';
 
 interface Props {
-  onSave: (name: string, config: HostConfig) => void;
-  onClose: () => void;
+  onSave:           (name: string, config: HostConfig) => void;
+  onClose:          () => void;
+  defaultPort?:     string;
+  defaultUsername?: string;
 }
 
-export default function AddHostDialog({ onSave, onClose }: Props) {
+export default function AddHostDialog({ onSave, onClose, defaultPort = '22', defaultUsername = '' }: Props) {
   const [name, setName]         = useState('');
   const [host, setHost]         = useState('');
-  const [port, setPort]         = useState('22');
-  const [username, setUsername] = useState('');
+  const [port, setPort]         = useState(defaultPort);
+  const [username, setUsername] = useState(defaultUsername);
   const [authType, setAuthType] = useState<'Password' | 'PrivateKey'>('Password');
   const [password, setPassword] = useState('');
   const [keyPath, setKeyPath]   = useState('');

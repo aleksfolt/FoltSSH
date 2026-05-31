@@ -42,6 +42,10 @@ export const localFs = {
   listDir:  (path: string) => invoke<LocalEntry[]>('fs_list_local', { path }),
 };
 
+export const sys = {
+  homeDir: () => invoke<string | null>('get_home_dir'),
+};
+
 export const sftp = {
   list:   (connId: string, path: string)               => invoke<FileEntry[]>('sftp_list', { connId, path }),
   exists: (connId: string, path: string)               => invoke<boolean>('sftp_exists', { connId, path }),

@@ -4,56 +4,116 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Lock, AlertCircle, Loader } from 'lucide-react';
-import { Host } from '../types';
+import { Host, AppSettings, DEFAULT_SETTINGS } from '../types';
+import { buildTheme } from '../terminalThemes';
 import { shell } from '../api';
 import '@xterm/xterm/css/xterm.css';
 
 interface Props {
-  host: Host;
+  host:          Host;
+  settings?:     AppSettings;
+  onDisconnect?: () => void;
 }
 
 type State = 'connecting' | 'ready' | 'error' | 'closed';
 
-export default function Terminal({ host }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const xtermRef    = useRef<XTerm | null>(null);
-  const fitRef      = useRef<FitAddon | null>(null);
-  const shellIdRef  = useRef<string | null>(null);
-  const unlistenRef = useRef<UnlistenFn[]>([]);
-  const [status, setStatus] = useState<State>('connecting');
+export default function Terminal({ host, settings, onDisconnect }: Props) {
+  const s = settings ?? DEFAULT_SETTINGS;
+
+  const containerRef    = useRef<HTMLDivElement>(null);
+  const xtermRef        = useRef<XTerm | null>(null);
+  const fitRef          = useRef<FitAddon | null>(null);
+  const shellIdRef      = useRef<string | null>(null);
+  const unlistenRef     = useRef<UnlistenFn[]>([]);
+  const statusRef       = useRef<State>('connecting');
+  const settingsRef     = useRef(s);
+  const reconnectTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onDisconnectRef = useRef(onDisconnect);
+
+  settingsRef.current   = s;
+  onDisconnectRef.current = onDisconnect;
+
+  const [status, setStatus]   = useState<State>('connecting');
   const [errorMsg, setErrorMsg] = useState('');
 
+  function updateStatus(st: State) {
+    statusRef.current = st;
+    setStatus(st);
+  }
+
+  // ── Shell open + event wiring ─────────────────────────────
+  async function openShell(connId: string): Promise<UnlistenFn[]> {
+    const term = xtermRef.current!;
+    updateStatus('connecting');
+
+    const sid = await shell.open(connId, term.cols, term.rows);
+    shellIdRef.current = sid;
+
+    const ul: UnlistenFn[] = [];
+
+    ul.push(await listen<void>(`shell:ready:${sid}`, () => updateStatus('ready')));
+
+    ul.push(await listen<string>(`shell:data:${sid}`, (ev) => {
+      const bytes = Uint8Array.from(atob(ev.payload), (c) => c.charCodeAt(0));
+      term.write(bytes);
+    }));
+
+    ul.push(await listen<void>(`shell:exit:${sid}`, () => {
+      updateStatus('closed');
+      term.writeln('\r\n\x1b[33m[Connection closed]\x1b[0m');
+      ul.forEach((u) => u());
+      unlistenRef.current = [];
+
+      const cfg = settingsRef.current;
+      if (cfg.autoReconnect) {
+        let remaining = cfg.reconnectDelay;
+        term.write(`\r\x1b[33m[Reconnecting in ${remaining}s…]\x1b[0m\x1b[K`);
+        reconnectTimer.current = setInterval(async () => {
+          remaining--;
+          if (remaining > 0) {
+            term.write(`\r\x1b[33m[Reconnecting in ${remaining}s…]\x1b[0m\x1b[K`);
+          } else {
+            clearInterval(reconnectTimer.current!);
+            reconnectTimer.current = null;
+            term.write('\r\x1b[33m[Reconnecting…]\x1b[0m\x1b[K');
+            try {
+              unlistenRef.current = await openShell(connId);
+            } catch {
+              term.writeln('\r\n\x1b[31m[Reconnect failed]\x1b[0m');
+              onDisconnectRef.current?.();
+            }
+          }
+        }, 1000);
+      } else {
+        onDisconnectRef.current?.();
+      }
+    }));
+
+    ul.push(await listen<string>(`shell:error:${sid}`, (ev) => {
+      updateStatus('error');
+      setErrorMsg(ev.payload);
+      ul.forEach((u) => u());
+      unlistenRef.current = [];
+      onDisconnectRef.current?.();
+    }));
+
+    return ul;
+  }
+
+  // ── Mount: create XTerm + open first shell ────────────────
   useEffect(() => {
     if (!containerRef.current || !host.connId) return;
 
+    const cfg = settingsRef.current;
     const term = new XTerm({
-      theme: {
-        background:   '#0f0f11',
-        foreground:   '#c8c8d8',
-        cursor:       '#c8c8d8',
-        black:        '#1a1a26',
-        red:          '#ef5350',
-        green:        '#4caf50',
-        yellow:       '#ffc107',
-        blue:         '#2196f3',
-        magenta:      '#9c27b0',
-        cyan:         '#26c6da',
-        white:        '#c8c8d8',
-        brightBlack:  '#555566',
-        brightRed:    '#ff6b6b',
-        brightGreen:  '#69f0ae',
-        brightYellow: '#ffd740',
-        brightBlue:   '#40c4ff',
-        brightMagenta:'#e040fb',
-        brightCyan:   '#64ffda',
-        brightWhite:  '#ffffff',
-      },
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
-      fontSize: 13,
-      lineHeight: 1.4,
-      cursorBlink: true,
+      theme:           buildTheme(cfg.terminalTheme, cfg.terminalOpacity),
+      fontFamily:      `'${cfg.fontFamily}', 'JetBrains Mono', Menlo, monospace`,
+      fontSize:        cfg.fontSize,
+      lineHeight:      1.4,
+      cursorBlink:     cfg.cursorBlink,
+      cursorStyle:     cfg.cursorStyle,
       allowProposedApi: true,
-      scrollback: 5000,
+      scrollback:      cfg.scrollback,
     });
 
     const fit = new FitAddon();
@@ -61,53 +121,27 @@ export default function Terminal({ host }: Props) {
     term.loadAddon(new WebLinksAddon());
     term.open(containerRef.current);
     fit.fit();
-
     xtermRef.current = term;
     fitRef.current   = fit;
 
     const connId = host.connId!;
-    const cols = term.cols;
-    const rows = term.rows;
 
-    // Open shell
-    shell.open(connId, cols, rows).then(async (sid) => {
-      shellIdRef.current = sid;
+    openShell(connId)
+      .then((ul) => { unlistenRef.current = ul; })
+      .catch((e) => { updateStatus('error'); setErrorMsg(String(e)); });
 
-      const unlisten: UnlistenFn[] = [];
-
-      unlisten.push(await listen<void>(`shell:ready:${sid}`, () => {
-        setStatus('ready');
-      }));
-
-      unlisten.push(await listen<string>(`shell:data:${sid}`, (ev) => {
-        const bytes = Uint8Array.from(atob(ev.payload), (c) => c.charCodeAt(0));
-        term.write(bytes);
-      }));
-
-      unlisten.push(await listen<void>(`shell:exit:${sid}`, () => {
-        setStatus('closed');
-        term.writeln('\r\n\x1b[33m[Connection closed]\x1b[0m');
-      }));
-
-      unlisten.push(await listen<string>(`shell:error:${sid}`, (ev) => {
-        setStatus('error');
-        setErrorMsg(ev.payload);
-      }));
-
-      unlistenRef.current = unlisten;
-    }).catch((e) => {
-      setStatus('error');
-      setErrorMsg(String(e));
+    // Copy on select
+    term.onSelectionChange(() => {
+      if (settingsRef.current.copyOnSelect && term.hasSelection()) {
+        navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+      }
     });
 
-    // Send keyboard input
     term.onData((data) => {
-      if (!shellIdRef.current) return;
-      const bytes = Array.from(new TextEncoder().encode(data));
-      shell.write(shellIdRef.current, bytes).catch(console.error);
+      if (!shellIdRef.current || statusRef.current === 'closed' || statusRef.current === 'error') return;
+      shell.write(shellIdRef.current, Array.from(new TextEncoder().encode(data))).catch(console.error);
     });
 
-    // Resize
     const ro = new ResizeObserver(() => {
       if (!fitRef.current || !shellIdRef.current) return;
       fitRef.current.fit();
@@ -116,6 +150,7 @@ export default function Terminal({ host }: Props) {
     ro.observe(containerRef.current);
 
     return () => {
+      if (reconnectTimer.current) { clearInterval(reconnectTimer.current); reconnectTimer.current = null; }
       ro.disconnect();
       unlistenRef.current.forEach((u) => u());
       if (shellIdRef.current) shell.close(shellIdRef.current).catch(() => {});
@@ -124,6 +159,21 @@ export default function Terminal({ host }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host.connId]);
 
+  // ── Live-update XTerm options without restart ─────────────
+  useEffect(() => {
+    const term = xtermRef.current;
+    if (!term) return;
+    term.options.fontSize        = s.fontSize;
+    term.options.fontFamily      = `'${s.fontFamily}', 'JetBrains Mono', Menlo, monospace`;
+    term.options.cursorBlink     = s.cursorBlink;
+    term.options.cursorStyle     = s.cursorStyle;
+    term.options.scrollback      = s.scrollback;
+    term.options.theme           = buildTheme(s.terminalTheme, s.terminalOpacity);
+    fitRef.current?.fit();
+  }, [s.fontSize, s.fontFamily, s.cursorBlink, s.cursorStyle,
+      s.copyOnSelect, s.terminalTheme, s.terminalOpacity, s.scrollback]);
+
+  // ── Render ────────────────────────────────────────────────
   return (
     <div className="terminal">
       <div className="terminal__conn-bar">
@@ -132,7 +182,7 @@ export default function Terminal({ host }: Props) {
         </span>
         <span className={`terminal__conn-badge terminal__conn-badge--${status}`}>
           {status === 'connecting' && <><Loader size={10} className="spin" /> connecting</>}
-          {status === 'ready'      && <><Lock size={10} /> connected</>}
+          {status === 'ready'      && <><Lock   size={10} /> connected</>}
           {status === 'closed'     && 'closed'}
           {status === 'error'      && <><AlertCircle size={10} /> error</>}
         </span>
