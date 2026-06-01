@@ -14,6 +14,7 @@ export default function AddHostDialog({ onSave, onClose, defaultPort = '22', def
   const [host, setHost]         = useState('');
   const [port, setPort]         = useState(defaultPort);
   const [username, setUsername] = useState(defaultUsername);
+  const [group, setGroup]       = useState('');
   const [authType, setAuthType] = useState<'Password' | 'PrivateKey'>('Password');
   const [password, setPassword] = useState('');
   const [keyPath, setKeyPath]   = useState('');
@@ -35,10 +36,11 @@ export default function AddHostDialog({ onSave, onClose, defaultPort = '22', def
         : { type: 'PrivateKey', path: keyPath, passphrase: passphrase || undefined };
 
     const config: HostConfig = {
-      host: host.trim(),
-      port: parseInt(port) || 22,
+      host:     host.trim(),
+      port:     parseInt(port) || 22,
       username: username.trim(),
       auth,
+      group:    group.trim() || undefined,
     };
 
     const displayName = name.trim() || `${username}@${host}`;
@@ -54,9 +56,14 @@ export default function AddHostDialog({ onSave, onClose, defaultPort = '22', def
         </div>
 
         <form className="dialog__form" onSubmit={handleSubmit}>
-          <label className="dialog__label">Label (optional)
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="My Server" />
-          </label>
+          <div className="dialog__row">
+            <label className="dialog__label dialog__label--grow">Label (optional)
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="My Server" />
+            </label>
+            <label className="dialog__label" style={{ minWidth: 110 }}>Group
+              <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder="Production" />
+            </label>
+          </div>
 
           <div className="dialog__row">
             <label className="dialog__label dialog__label--grow">Hostname / IP

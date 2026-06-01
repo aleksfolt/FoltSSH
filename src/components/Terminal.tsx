@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { SearchAddon } from '@xterm/addon-search';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { Lock, AlertCircle, Loader } from 'lucide-react';
+import { Lock, AlertCircle, Loader, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { Host, AppSettings, DEFAULT_SETTINGS } from '../types';
 import { buildTheme } from '../terminalThemes';
 import { shell } from '../api';
@@ -23,18 +24,22 @@ export default function Terminal({ host, settings, onDisconnect }: Props) {
   const containerRef    = useRef<HTMLDivElement>(null);
   const xtermRef        = useRef<XTerm | null>(null);
   const fitRef          = useRef<FitAddon | null>(null);
+  const searchRef       = useRef<SearchAddon | null>(null);
   const shellIdRef      = useRef<string | null>(null);
   const unlistenRef     = useRef<UnlistenFn[]>([]);
   const statusRef       = useRef<State>('connecting');
   const settingsRef     = useRef(s);
   const reconnectTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
   const onDisconnectRef = useRef(onDisconnect);
+  const searchInputRef  = useRef<HTMLInputElement>(null);
 
-  settingsRef.current   = s;
+  settingsRef.current     = s;
   onDisconnectRef.current = onDisconnect;
 
-  const [status, setStatus]   = useState<State>('connecting');
+  const [status, setStatus]     = useState<State>('connecting');
   const [errorMsg, setErrorMsg] = useState('');
+  const [searchOpen, setSearchOpen]   = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   function updateStatus(st: State) {
     statusRef.current = st;
@@ -106,23 +111,26 @@ export default function Terminal({ host, settings, onDisconnect }: Props) {
 
     const cfg = settingsRef.current;
     const term = new XTerm({
-      theme:           buildTheme(cfg.terminalTheme, cfg.terminalOpacity),
-      fontFamily:      `'${cfg.fontFamily}', 'JetBrains Mono', Menlo, monospace`,
-      fontSize:        cfg.fontSize,
-      lineHeight:      1.4,
-      cursorBlink:     cfg.cursorBlink,
-      cursorStyle:     cfg.cursorStyle,
+      theme:            buildTheme(cfg.terminalTheme, cfg.terminalOpacity),
+      fontFamily:       `'${cfg.fontFamily}', 'JetBrains Mono', Menlo, monospace`,
+      fontSize:         cfg.fontSize,
+      lineHeight:       1.4,
+      cursorBlink:      cfg.cursorBlink,
+      cursorStyle:      cfg.cursorStyle,
       allowProposedApi: true,
-      scrollback:      cfg.scrollback,
+      scrollback:       cfg.scrollback,
     });
 
-    const fit = new FitAddon();
+    const fit    = new FitAddon();
+    const search = new SearchAddon();
     term.loadAddon(fit);
+    term.loadAddon(search);
     term.loadAddon(new WebLinksAddon());
     term.open(containerRef.current);
     fit.fit();
-    xtermRef.current = term;
-    fitRef.current   = fit;
+    xtermRef.current  = term;
+    fitRef.current    = fit;
+    searchRef.current = search;
 
     const connId = host.connId!;
 
@@ -130,7 +138,6 @@ export default function Terminal({ host, settings, onDisconnect }: Props) {
       .then((ul) => { unlistenRef.current = ul; })
       .catch((e) => { updateStatus('error'); setErrorMsg(String(e)); });
 
-    // Copy on select
     term.onSelectionChange(() => {
       if (settingsRef.current.copyOnSelect && term.hasSelection()) {
         navigator.clipboard.writeText(term.getSelection()).catch(() => {});
@@ -149,7 +156,22 @@ export default function Terminal({ host, settings, onDisconnect }: Props) {
     });
     ro.observe(containerRef.current);
 
+    // Ctrl+F — open search
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+
     return () => {
+      window.removeEventListener('keydown', onKey);
       if (reconnectTimer.current) { clearInterval(reconnectTimer.current); reconnectTimer.current = null; }
       ro.disconnect();
       unlistenRef.current.forEach((u) => u());
@@ -163,15 +185,26 @@ export default function Terminal({ host, settings, onDisconnect }: Props) {
   useEffect(() => {
     const term = xtermRef.current;
     if (!term) return;
-    term.options.fontSize        = s.fontSize;
-    term.options.fontFamily      = `'${s.fontFamily}', 'JetBrains Mono', Menlo, monospace`;
-    term.options.cursorBlink     = s.cursorBlink;
-    term.options.cursorStyle     = s.cursorStyle;
-    term.options.scrollback      = s.scrollback;
-    term.options.theme           = buildTheme(s.terminalTheme, s.terminalOpacity);
+    term.options.fontSize    = s.fontSize;
+    term.options.fontFamily  = `'${s.fontFamily}', 'JetBrains Mono', Menlo, monospace`;
+    term.options.cursorBlink = s.cursorBlink;
+    term.options.cursorStyle = s.cursorStyle;
+    term.options.scrollback  = s.scrollback;
+    term.options.theme       = buildTheme(s.terminalTheme, s.terminalOpacity);
     fitRef.current?.fit();
   }, [s.fontSize, s.fontFamily, s.cursorBlink, s.cursorStyle,
       s.copyOnSelect, s.terminalTheme, s.terminalOpacity, s.scrollback]);
+
+  function handleSearchChange(q: string) {
+    setSearchQuery(q);
+    if (q) searchRef.current?.findNext(q, { incremental: true, caseSensitive: false });
+  }
+
+  function closeSearch() {
+    setSearchOpen(false);
+    setSearchQuery('');
+    xtermRef.current?.focus();
+  }
 
   // ── Render ────────────────────────────────────────────────
   return (
@@ -195,7 +228,42 @@ export default function Terminal({ host, settings, onDisconnect }: Props) {
         </div>
       )}
 
-      <div ref={containerRef} className="terminal__body" />
+      <div className="terminal__body-wrap">
+        {searchOpen && (
+          <div className="term-search">
+            <Search size={13} className="term-search__icon" />
+            <input
+              ref={searchInputRef}
+              className="term-search__input"
+              placeholder="Find…"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter')  searchRef.current?.findNext(searchQuery, { caseSensitive: false });
+                if (e.key === 'Escape') closeSearch();
+              }}
+            />
+            <button
+              className="term-search__nav"
+              title="Previous (Shift+Enter)"
+              onClick={() => searchRef.current?.findPrevious(searchQuery, { caseSensitive: false })}
+            >
+              <ChevronUp size={13} />
+            </button>
+            <button
+              className="term-search__nav"
+              title="Next (Enter)"
+              onClick={() => searchRef.current?.findNext(searchQuery, { caseSensitive: false })}
+            >
+              <ChevronDown size={13} />
+            </button>
+            <button className="term-search__close" onClick={closeSearch}>
+              <X size={13} />
+            </button>
+          </div>
+        )}
+        <div ref={containerRef} className="terminal__body" />
+      </div>
     </div>
   );
 }

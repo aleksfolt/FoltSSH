@@ -38,10 +38,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export interface HostConfig {
-  host: string;
-  port: number;
+  host:     string;
+  port:     number;
   username: string;
-  auth: AuthMethod;
+  auth:     AuthMethod;
+  group?:   string;
 }
 
 export type AuthMethod =

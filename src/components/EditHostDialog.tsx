@@ -14,6 +14,7 @@ export default function EditHostDialog({ host, onSave, onClose }: Props) {
   const [hostname, setHostname] = useState(host.config.host);
   const [port, setPort]         = useState(String(host.config.port));
   const [username, setUsername] = useState(host.config.username);
+  const [group, setGroup]       = useState(host.config.group ?? '');
   const [authType, setAuthType] = useState<'Password' | 'PrivateKey'>(
     host.config.auth.type,
   );
@@ -40,10 +41,11 @@ export default function EditHostDialog({ host, onSave, onClose }: Props) {
         ? { type: 'Password', password }
         : { type: 'PrivateKey', path: keyPath, passphrase: passphrase || undefined };
     const config: HostConfig = {
-      host: hostname.trim(),
-      port: parseInt(port) || 22,
+      host:     hostname.trim(),
+      port:     parseInt(port) || 22,
       username: username.trim(),
       auth,
+      group:    group.trim() || undefined,
     };
     onSave(host.id, name.trim() || `${username}@${hostname}`, config);
   }
@@ -57,9 +59,14 @@ export default function EditHostDialog({ host, onSave, onClose }: Props) {
         </div>
 
         <form className="dialog__form" onSubmit={handleSubmit}>
-          <label className="dialog__label">Label
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="My Server" />
-          </label>
+          <div className="dialog__row">
+            <label className="dialog__label dialog__label--grow">Label
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="My Server" />
+            </label>
+            <label className="dialog__label" style={{ minWidth: 110 }}>Group
+              <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder="Production" />
+            </label>
+          </div>
 
           <div className="dialog__row">
             <label className="dialog__label dialog__label--grow">Hostname / IP
