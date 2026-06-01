@@ -254,14 +254,42 @@ function App() {
                   >SFTP</button>
                 </div>
 
-                {isTerminal && (
-                  <Terminal
-                    host={selectedHost}
-                    settings={settings}
-                    onDisconnect={() => handleDisconnect(selectedHost.id)}
-                  />
-                )}
-                {isSftp && <SftpBrowser host={selectedHost} onClose={() => closeTab(activeTabId!)} />}
+                {tabs.filter((t) => t.view === 'terminal').map((tab) => {
+                  const tabHost = hosts.find((h) => h.id === tab.hostId);
+                  if (!tabHost) return null;
+                  const active = activeTabId === tab.id && isTerminal;
+                  return (
+                    <div
+                      key={tab.id}
+                      style={active
+                        ? { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }
+                        : { display: 'none' }}
+                    >
+                      <Terminal
+                        host={tabHost}
+                        settings={settings}
+                        onDisconnect={() => handleDisconnect(tabHost.id)}
+                        isActive={active}
+                      />
+                    </div>
+                  );
+                })}
+
+                {tabs.filter((t) => t.view === 'sftp').map((tab) => {
+                  const tabHost = hosts.find((h) => h.id === tab.hostId);
+                  if (!tabHost) return null;
+                  const active = activeTabId === tab.id && isSftp;
+                  return (
+                    <div
+                      key={tab.id}
+                      style={active
+                        ? { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }
+                        : { display: 'none' }}
+                    >
+                      <SftpBrowser host={tabHost} onClose={() => closeTab(tab.id)} />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

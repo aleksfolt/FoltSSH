@@ -14,11 +14,12 @@ interface Props {
   host:          Host;
   settings?:     AppSettings;
   onDisconnect?: () => void;
+  isActive?:     boolean;
 }
 
 type State = 'connecting' | 'ready' | 'error' | 'closed';
 
-export default function Terminal({ host, settings, onDisconnect }: Props) {
+export default function Terminal({ host, settings, onDisconnect, isActive }: Props) {
   const s = settings ?? DEFAULT_SETTINGS;
 
   const containerRef    = useRef<HTMLDivElement>(null);
@@ -180,6 +181,11 @@ export default function Terminal({ host, settings, onDisconnect }: Props) {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host.connId]);
+
+  // ── Re-fit when tab becomes visible after display:none ───────
+  useEffect(() => {
+    if (isActive) setTimeout(() => fitRef.current?.fit(), 0);
+  }, [isActive]);
 
   // ── Live-update XTerm options without restart ─────────────
   useEffect(() => {
