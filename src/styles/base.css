@@ -1,0 +1,117 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base:        #141416;
+  --bg-panel:       #1c1c1f;
+  --bg-hover:       #242428;
+  --bg-active:      #2e2e34;
+  --bg-terminal:    #0f0f11;
+  --border:         #2a2a2e;
+  --text-primary:   #e0e0e4;
+  --text-secondary: #78788a;
+  --text-dim:       #46464e;
+  --accent:         #9898a8;
+  --green:          #4caf50;
+  --yellow:         #ffc107;
+}
+
+html, body, #root { height: 100%; overflow: hidden; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+input { font: inherit; }
+
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.main__content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.main__empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-dim);
+}
+
+.main__add-btn {
+  margin-top: 8px;
+  padding: 7px 20px;
+  border-radius: 8px;
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-size: 13px;
+  transition: background 0.15s;
+}
+.main__add-btn:hover { background: var(--bg-hover); }
+
+.main__empty-icon  { font-size: 48px; opacity: 0.3; }
+.main__empty-title { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+.main__empty-hint  { font-size: 12.5px; }
+
+.main__terminal-wrap,
+.main__sftp-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main__view-switcher {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.main__view-btn {
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  transition: background 0.12s, color 0.12s;
+}
+.main__view-btn:hover       { background: var(--bg-hover); color: var(--text-primary); }
+.main__view-btn--active     { background: var(--bg-active); color: var(--text-primary); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; }

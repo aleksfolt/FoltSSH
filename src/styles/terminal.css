@@ -1,0 +1,109 @@
+.terminal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.terminal__conn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 14px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.terminal__conn-text {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.terminal__conn-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-base);
+}
+.terminal__conn-badge--connecting { color: var(--yellow); }
+.terminal__conn-badge--ready      { color: var(--green); }
+.terminal__conn-badge--closed     { color: var(--text-dim); }
+.terminal__conn-badge--error      { color: #ef5350; }
+
+.terminal__error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #2a1010;
+  color: #ef5350;
+  font-size: 12.5px;
+  border-bottom: 1px solid #3a1515;
+  flex-shrink: 0;
+}
+
+.terminal__body-wrap {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.terminal__body {
+  flex: 1;
+  overflow: hidden;
+  padding: 6px 4px 4px 8px;
+  background: #0f0f11;
+}
+
+/* xterm overrides */
+.terminal__body .xterm          { height: 100%; }
+.terminal__body .xterm-viewport { overflow-y: auto !important; }
+
+/* Search bar */
+.term-search {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+.term-search__icon { color: var(--text-dim); flex-shrink: 0; }
+
+.term-search__input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  width: 180px;
+  padding: 0 4px;
+}
+.term-search__input::placeholder { color: var(--text-dim); }
+
+.term-search__nav,
+.term-search__close {
+  color: var(--text-dim);
+  padding: 3px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.term-search__nav:hover,
+.term-search__close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}

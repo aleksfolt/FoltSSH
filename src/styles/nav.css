@@ -1,0 +1,43 @@
+.icon-nav {
+  width: 56px;
+  background: var(--bg-base);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  flex-shrink: 0;
+}
+
+.icon-nav__top {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.icon-nav__bottom { margin-top: auto; }
+
+.icon-nav__btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+}
+.icon-nav__btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
+.icon-nav__btn--active { background: var(--bg-active); color: var(--accent); }
+
+.icon-nav__avatar { position: relative; }
+
+.icon-nav__status-dot {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 2px solid var(--bg-base);
+}

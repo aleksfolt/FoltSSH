@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react';
-import './App.css';
+import './styles/base.css';
+import './styles/nav.css';
+import './styles/hosts-panel.css';
+import './styles/tabs.css';
+import './styles/terminal.css';
+import './styles/sftp.css';
+import './styles/dialog.css';
+import './styles/settings.css';
+import './styles/keys-panel.css';
+import './styles/misc.css';
 import IconNav from './components/IconNav';
 import HostsPanel from './components/HostsPanel';
 import TabBar from './components/TabBar';
