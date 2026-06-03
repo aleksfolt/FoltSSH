@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { open as dialogOpen } from '@tauri-apps/plugin-dialog';
 import {
   ChevronLeft, ChevronRight, ChevronUp, RefreshCw, Square,
-  FolderPlus, Trash2, Upload, X, Loader, AlertCircle,
+  FolderPlus, Trash2, Upload, Download, X, Loader, AlertCircle,
 } from 'lucide-react';
 import { Host, FileEntry } from '../types';
 import { sftp, localFs, LocalEntry } from '../api';
@@ -292,6 +293,55 @@ export default function SftpBrowser({ host, onClose }: Props) {
     input.click();
   }
 
+  // ─── download selected entry ───────────────────────────────────────────
+
+  async function handleDownload() {
+    const connId = host.connId;
+    if (!connId || !selected) return;
+
+    const entry = entries.find((e) => e.path === selected);
+    if (!entry) return;
+
+    // Ask user to choose a destination folder
+    const destDir = await dialogOpen({ directory: true, multiple: false, title: 'Choose download folder' });
+    if (!destDir || typeof destDir !== 'string') return;
+
+    if (entry.is_dir) {
+      let files: { path: string; relative: string }[];
+      try {
+        files = await sftp.listRecursive(connId, entry.path);
+      } catch (e) {
+        setError(String(e));
+        return;
+      }
+      if (!files.length) { setProgress(null); return; }
+
+      let done = 0;
+      for (const f of files) {
+        setProgress({ current: done + 1, total: files.length, name: f.relative });
+        try {
+          const b64 = await sftp.read(connId, f.path);
+          // localPath = destDir / folderName / relative
+          const localPath = [destDir, entry.name, f.relative].join('/');
+          await localFs.writeFile(localPath, b64);
+        } catch (e) {
+          console.error('Download failed:', f.path, e);
+        }
+        done++;
+      }
+    } else {
+      setProgress({ current: 1, total: 1, name: entry.name });
+      try {
+        const b64 = await sftp.read(connId, entry.path);
+        await localFs.writeFile(`${destDir}/${entry.name}`, b64);
+      } catch (e) {
+        setError(String(e));
+      }
+    }
+
+    setProgress(null);
+  }
+
   // ─── folder create ─────────────────────────────────────────────────────
 
   async function handleNewFolder() {
@@ -388,16 +438,25 @@ export default function SftpBrowser({ host, onClose }: Props) {
         <button className="sftp__tb-btn" title="New Folder" onClick={handleNewFolder}><FolderPlus size={15}/></button>
         <button className="sftp__tb-btn" title="Upload Files" onClick={handleUploadClick}><Upload size={15}/></button>
         {selected && (
-          <button
-            className="sftp__tb-btn sftp__tb-btn--danger"
-            title="Delete"
-            onClick={() => {
-              const entry = entries.find((e) => e.path === selected);
-              if (entry) setPendingDelete(entry);
-            }}
-          >
-            <Trash2 size={15}/>
-          </button>
+          <>
+            <button
+              className="sftp__tb-btn"
+              title="Download"
+              onClick={handleDownload}
+            >
+              <Download size={15}/>
+            </button>
+            <button
+              className="sftp__tb-btn sftp__tb-btn--danger"
+              title="Delete"
+              onClick={() => {
+                const entry = entries.find((e) => e.path === selected);
+                if (entry) setPendingDelete(entry);
+              }}
+            >
+              <Trash2 size={15}/>
+            </button>
+          </>
         )}
       </div>
 

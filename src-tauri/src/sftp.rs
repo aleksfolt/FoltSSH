@@ -5,8 +5,45 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use tauri::State;
 
 use crate::ssh::get_session;
-use crate::types::FileEntry;
+use crate::types::{FileEntry, RemoteFileFlat};
 use crate::AppState;
+
+fn collect_remote(sftp: &ssh2::Sftp, remote: &Path, base_remote: &Path, out: &mut Vec<RemoteFileFlat>) {
+    let Ok(entries) = sftp.readdir(remote) else { return };
+    for (child, stat) in entries {
+        if stat.file_type().is_dir() {
+            collect_remote(sftp, &child, base_remote, out);
+        } else {
+            // relative path inside the downloaded root
+            let rel = child
+                .strip_prefix(base_remote)
+                .unwrap_or(&child)
+                .to_string_lossy()
+                .into_owned();
+            out.push(RemoteFileFlat {
+                path: child.to_string_lossy().into_owned(),
+                relative: rel,
+            });
+        }
+    }
+}
+
+/// Returns a flat list of all files under `path` (recursive).
+/// Each entry has `path` (full remote) and `relative` (path relative to `path` itself).
+#[tauri::command]
+pub fn sftp_list_recursive(
+    conn_id: String,
+    path:    String,
+    state:   State<AppState>,
+) -> Result<Vec<RemoteFileFlat>, String> {
+    let sess_arc = get_session(&conn_id, &state)?;
+    let sess     = sess_arc.lock().unwrap();
+    let sftp     = sess.sftp().map_err(|e| e.to_string())?;
+    let p        = Path::new(&path);
+    let mut out  = Vec::new();
+    collect_remote(&sftp, p, p, &mut out);
+    Ok(out)
+}
 
 fn rm_recursive(sftp: &ssh2::Sftp, p: &Path) -> Result<(), String> {
     match sftp.readdir(p) {

@@ -85,3 +85,8 @@ export interface FileEntry {
   modified: number;
   permissions: number;
 }
+
+export interface RemoteFileFlat {
+  path:     string; // full remote path
+  relative: string; // relative to download root
+}

@@ -23,6 +23,7 @@ pub struct AppState {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             window::setup_window(app)?;
             Ok(())
@@ -53,9 +54,12 @@ pub fn run() {
             sftp::sftp_read,
             sftp::sftp_write,
             sftp::sftp_rm_all,
+            sftp::sftp_list_recursive,
             fs::fs_read_local,
             fs::fs_list_local,
+            fs::fs_write_local,
             fs::get_home_dir,
+            fs::get_downloads_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

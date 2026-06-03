@@ -46,3 +46,9 @@ pub struct LocalEntry {
     pub path:   String,
     pub is_dir: bool,
 }
+
+#[derive(Debug, Serialize)]
+pub struct RemoteFileFlat {
+    pub path:     String, // full remote path
+    pub relative: String, // relative to the download root
+}

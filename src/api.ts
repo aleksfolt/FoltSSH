@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { HostConfig, ExecResult, FileEntry } from './types';
+import type { HostConfig, ExecResult, FileEntry, RemoteFileFlat } from './types';
 
 export interface LocalEntry {
   name:   string;
@@ -38,22 +38,25 @@ export const shell = {
 };
 
 export const localFs = {
-  readFile: (path: string) => invoke<string>('fs_read_local', { path }),
-  listDir:  (path: string) => invoke<LocalEntry[]>('fs_list_local', { path }),
+  readFile:     (path: string)               => invoke<string>('fs_read_local', { path }),
+  writeFile:    (path: string, data: string) => invoke<void>('fs_write_local', { path, data }),
+  listDir:      (path: string)               => invoke<LocalEntry[]>('fs_list_local', { path }),
 };
 
 export const sys = {
-  homeDir: () => invoke<string | null>('get_home_dir'),
+  homeDir:      () => invoke<string | null>('get_home_dir'),
+  downloadsDir: () => invoke<string | null>('get_downloads_dir'),
 };
 
 export const sftp = {
-  list:   (connId: string, path: string)               => invoke<FileEntry[]>('sftp_list', { connId, path }),
-  exists: (connId: string, path: string)               => invoke<boolean>('sftp_exists', { connId, path }),
-  mkdir:  (connId: string, path: string)               => invoke<void>('sftp_mkdir', { connId, path }),
-  rm:     (connId: string, path: string)               => invoke<void>('sftp_rm', { connId, path }),
-  rmdir:  (connId: string, path: string)               => invoke<void>('sftp_rmdir', { connId, path }),
-  rmAll:  (connId: string, path: string)               => invoke<void>('sftp_rm_all', { connId, path }),
-  rename: (connId: string, from: string, to: string)   => invoke<void>('sftp_rename', { connId, from, to }),
-  read:   (connId: string, path: string)               => invoke<string>('sftp_read', { connId, path }),
-  write:  (connId: string, path: string, data: string) => invoke<void>('sftp_write', { connId, path, data }),
+  list:          (connId: string, path: string)               => invoke<FileEntry[]>('sftp_list', { connId, path }),
+  listRecursive: (connId: string, path: string)               => invoke<RemoteFileFlat[]>('sftp_list_recursive', { connId, path }),
+  exists:        (connId: string, path: string)               => invoke<boolean>('sftp_exists', { connId, path }),
+  mkdir:         (connId: string, path: string)               => invoke<void>('sftp_mkdir', { connId, path }),
+  rm:            (connId: string, path: string)               => invoke<void>('sftp_rm', { connId, path }),
+  rmdir:         (connId: string, path: string)               => invoke<void>('sftp_rmdir', { connId, path }),
+  rmAll:         (connId: string, path: string)               => invoke<void>('sftp_rm_all', { connId, path }),
+  rename:        (connId: string, from: string, to: string)   => invoke<void>('sftp_rename', { connId, from, to }),
+  read:          (connId: string, path: string)               => invoke<string>('sftp_read', { connId, path }),
+  write:         (connId: string, path: string, data: string) => invoke<void>('sftp_write', { connId, path, data }),
 };
