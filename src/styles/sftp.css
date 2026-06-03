@@ -266,3 +266,81 @@
 .sftp__confirm-btn--cancel:hover { background: var(--bg-active); }
 .sftp__confirm-btn--delete { background: #ef5350; color: #fff; }
 .sftp__confirm-btn--delete:hover { background: #e53935; }
+
+/* ── View mode toggle ────────────────────────────────── */
+
+.sftp__tb-spacer {
+  flex: 1;
+}
+
+.sftp__tb-view-group {
+  display: flex;
+  gap: 1px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.sftp__tb-btn--active {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+/* ── List view (compact) ─────────────────────────────── */
+
+.sftp__list--compact .sftp__row {
+  padding: 4px 14px;
+  border-bottom: none;
+}
+
+.sftp__row-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Icons / grid view ───────────────────────────────── */
+
+.sftp__grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 4px;
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+.sftp__grid::-webkit-scrollbar       { width: 5px; }
+.sftp__grid::-webkit-scrollbar-track { background: transparent; }
+.sftp__grid::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
+
+.sftp__grid-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+  user-select: none;
+}
+.sftp__grid-item:hover              { background: var(--bg-hover); }
+.sftp__grid-item--selected          { background: var(--bg-active); }
+
+.sftp__grid-icon  { font-size: 32px; line-height: 1; }
+.sftp__grid-name {
+  font-size: 11px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 84px;
+  color: var(--text-secondary);
+}

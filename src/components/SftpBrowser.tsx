@@ -4,6 +4,7 @@ import { open as dialogOpen } from '@tauri-apps/plugin-dialog';
 import {
   ChevronLeft, ChevronRight, ChevronUp, RefreshCw, Square,
   FolderPlus, Trash2, Upload, Download, X, Loader, AlertCircle,
+  List, LayoutGrid, AlignJustify,
 } from 'lucide-react';
 import { Host, FileEntry } from '../types';
 import { sftp, localFs, LocalEntry } from '../api';
@@ -64,6 +65,7 @@ export default function SftpBrowser({ host, onClose }: Props) {
 
   const [pendingDelete, setPendingDelete] = useState<FileEntry[] | null>(null);
 
+  const [viewMode, setViewMode]     = useState<'details' | 'list' | 'icons'>('details');
   const [dragActive, setDragActive] = useState(false);
   const [progress, setProgress]     = useState<Progress | null>(null);
   const [conflict, setConflict]     = useState<{
@@ -492,6 +494,25 @@ export default function SftpBrowser({ host, onClose }: Props) {
             </button>
           </>
         )}
+
+        <div className="sftp__tb-spacer" />
+        <div className="sftp__tb-view-group">
+          <button
+            className={`sftp__tb-btn${viewMode === 'details' ? ' sftp__tb-btn--active' : ''}`}
+            title="Details view"
+            onClick={() => setViewMode('details')}
+          ><AlignJustify size={14}/></button>
+          <button
+            className={`sftp__tb-btn${viewMode === 'list' ? ' sftp__tb-btn--active' : ''}`}
+            title="List view"
+            onClick={() => setViewMode('list')}
+          ><List size={14}/></button>
+          <button
+            className={`sftp__tb-btn${viewMode === 'icons' ? ' sftp__tb-btn--active' : ''}`}
+            title="Icons view"
+            onClick={() => setViewMode('icons')}
+          ><LayoutGrid size={14}/></button>
+        </div>
       </div>
 
       {progress && (
@@ -508,18 +529,20 @@ export default function SftpBrowser({ host, onClose }: Props) {
         </div>
       )}
 
-      <div className="sftp__table-header">
-        <span className="sftp__col sftp__col--name">Name ↑</span>
-        <span className="sftp__col sftp__col--size">Size</span>
-        <span className="sftp__col sftp__col--modified">Modified</span>
-      </div>
+      {viewMode === 'details' && (
+        <div className="sftp__table-header">
+          <span className="sftp__col sftp__col--name">Name ↑</span>
+          <span className="sftp__col sftp__col--size">Size</span>
+          <span className="sftp__col sftp__col--modified">Modified</span>
+        </div>
+      )}
 
       <div className="sftp__body">
         {loading && <div className="sftp__state"><Loader size={18} className="spin"/><span>Loading…</span></div>}
         {!loading && error && (
           <div className="sftp__state sftp__state--error"><AlertCircle size={18}/><span>{error}</span></div>
         )}
-        {!loading && !error && (
+        {!loading && !error && viewMode === 'details' && (
           <ul className="sftp__list">
             {entries.map((f) => (
               <li
@@ -537,6 +560,40 @@ export default function SftpBrowser({ host, onClose }: Props) {
               </li>
             ))}
           </ul>
+        )}
+
+        {!loading && !error && viewMode === 'list' && (
+          <ul className="sftp__list sftp__list--compact">
+            {entries.map((f) => (
+              <li
+                key={f.path}
+                className={`sftp__row${selected.has(f.path) ? ' sftp__row--selected' : ''}`}
+                onClick={(e) => handleRowClick(e, f.path)}
+                onDoubleClick={() => { if (f.is_dir) navigate(f.path); }}
+              >
+                <span className="sftp__row-name">
+                  <span className="sftp__icon">{f.is_dir ? '📁' : '📄'}</span>
+                  {f.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {!loading && !error && viewMode === 'icons' && (
+          <div className="sftp__grid">
+            {entries.map((f) => (
+              <div
+                key={f.path}
+                className={`sftp__grid-item${selected.has(f.path) ? ' sftp__grid-item--selected' : ''}`}
+                onClick={(e) => handleRowClick(e, f.path)}
+                onDoubleClick={() => { if (f.is_dir) navigate(f.path); }}
+              >
+                <span className="sftp__grid-icon">{f.is_dir ? '📁' : '📄'}</span>
+                <span className="sftp__grid-name">{f.name}</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
