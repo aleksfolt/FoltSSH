@@ -303,14 +303,20 @@
   white-space: nowrap;
 }
 
+.sftp__row--up {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.sftp__row--up:hover { color: var(--text-primary); }
+
 /* ── Icons / grid view ───────────────────────────────── */
 
 .sftp__grid {
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  gap: 4px;
-  padding: 10px;
+  gap: 6px;
+  padding: 12px;
   overflow-y: auto;
   flex: 1;
 }
@@ -323,24 +329,26 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: 96px;
-  height: 96px;
+  gap: 2px;
+  width: 80px;
+  height: 72px;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.1s;
   user-select: none;
+  padding: 4px;
 }
 .sftp__grid-item:hover              { background: var(--bg-hover); }
 .sftp__grid-item--selected          { background: var(--bg-active); }
 
-.sftp__grid-icon  { font-size: 32px; line-height: 1; }
+.sftp__grid-icon  { font-size: 24px; line-height: 1; }
 .sftp__grid-name {
-  font-size: 11px;
+  font-size: 10.5px;
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 84px;
+  max-width: 72px;
   color: var(--text-secondary);
+  line-height: 1.2;
 }

@@ -564,6 +564,17 @@ export default function SftpBrowser({ host, onClose }: Props) {
 
         {!loading && !error && viewMode === 'list' && (
           <ul className="sftp__list sftp__list--compact">
+            {path !== '/' && (
+              <li
+                className="sftp__row sftp__row--up"
+                onClick={() => navigate(path.replace(/\/[^/]+$/, '') || '/')}
+              >
+                <span className="sftp__row-name">
+                  <span className="sftp__icon">📂</span>
+                  ..
+                </span>
+              </li>
+            )}
             {entries.map((f) => (
               <li
                 key={f.path}
