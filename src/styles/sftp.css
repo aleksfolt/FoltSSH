@@ -132,6 +132,8 @@
   flex-shrink: 0;
 }
 
+.sftp__footer-sel { color: var(--text-primary); }
+
 .sftp__state {
   flex: 1;
   display: flex;

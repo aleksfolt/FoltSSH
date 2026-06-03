@@ -16,7 +16,7 @@ interface Props {
 
 interface LocalUploadItem {
   localPath:  string;
-  remotePath: string; // parent dir on remote
+  remotePath: string;
   name:       string;
 }
 
@@ -57,9 +57,12 @@ export default function SftpBrowser({ host, onClose }: Props) {
   const [entries, setEntries]   = useState<FileEntry[]>([]);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
 
-  const [pendingDelete, setPendingDelete] = useState<FileEntry | null>(null);
+  // Multi-select: Set of selected paths + last-clicked for Shift range
+  const [selected, setSelected]           = useState<Set<string>>(new Set());
+  const [lastClickedPath, setLastClickedPath] = useState<string | null>(null);
+
+  const [pendingDelete, setPendingDelete] = useState<FileEntry[] | null>(null);
 
   const [dragActive, setDragActive] = useState(false);
   const [progress, setProgress]     = useState<Progress | null>(null);
@@ -68,14 +71,14 @@ export default function SftpBrowser({ host, onClose }: Props) {
   } | null>(null);
   const globalActionRef = useRef<ConflictAction | null>(null);
 
-  // Stable ref so the Tauri event handler always sees latest state
   const uploadRef = useRef<((paths: string[]) => Promise<void>) | null>(null);
 
   const loadDir = useCallback(async (p: string) => {
     if (!host.connId) return;
     setLoading(true);
     setError('');
-    setSelected(null);
+    setSelected(new Set());
+    setLastClickedPath(null);
     setPendingDelete(null);
     try {
       setEntries(await sftp.list(host.connId, p));
@@ -107,7 +110,7 @@ export default function SftpBrowser({ host, onClose }: Props) {
       }
     }).then((fn) => { cancel = fn; });
     return () => { cancel?.(); };
-  }, []); // register once; uploadRef stays current via assignment below
+  }, []);
 
   // ─── navigation ───────────────────────────────────────────────────────
 
@@ -116,6 +119,35 @@ export default function SftpBrowser({ host, onClose }: Props) {
     setHistory(next);
     setHistIdx(next.length - 1);
     loadDir(p);
+  }
+
+  // ─── row click with multi-select ──────────────────────────────────────
+
+  function handleRowClick(e: React.MouseEvent, filePath: string) {
+    if (e.shiftKey && lastClickedPath) {
+      // Range select: add everything between lastClickedPath and filePath
+      const paths = entries.map((en) => en.path);
+      const a = paths.indexOf(lastClickedPath);
+      const b = paths.indexOf(filePath);
+      const [lo, hi] = a <= b ? [a, b] : [b, a];
+      setSelected((prev) => {
+        const next = new Set(prev);
+        paths.slice(lo, hi + 1).forEach((p) => next.add(p));
+        return next;
+      });
+    } else if (e.metaKey || e.ctrlKey) {
+      // Toggle individual item
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(filePath)) next.delete(filePath); else next.add(filePath);
+        return next;
+      });
+      setLastClickedPath(filePath);
+    } else {
+      // Plain click — single select
+      setSelected(new Set([filePath]));
+      setLastClickedPath(filePath);
+    }
   }
 
   // ─── conflict resolution ───────────────────────────────────────────────
@@ -227,7 +259,6 @@ export default function SftpBrowser({ host, onClose }: Props) {
 
     if (!allItems.length) return;
 
-    // Create all necessary subdirs (parents before children)
     const dirsToCreate = new Set<string>();
     for (const item of allItems) {
       let d = item.remotePath;
@@ -240,7 +271,6 @@ export default function SftpBrowser({ host, onClose }: Props) {
       try { await sftp.mkdir(connId, d); } catch {}
     }
 
-    // Upload
     let done = 0;
     for (const item of allItems) {
       setProgress({ current: done + 1, total: allItems.length, name: item.name });
@@ -259,7 +289,6 @@ export default function SftpBrowser({ host, onClose }: Props) {
     loadDir(path);
   }
 
-  // Keep uploadRef current every render so the Tauri listener (registered once) always has fresh state
   uploadRef.current = uploadLocalPaths;
 
   // ─── upload via file picker ────────────────────────────────────────────
@@ -293,50 +322,51 @@ export default function SftpBrowser({ host, onClose }: Props) {
     input.click();
   }
 
-  // ─── download selected entry ───────────────────────────────────────────
+  // ─── download selected entries ─────────────────────────────────────────
 
   async function handleDownload() {
     const connId = host.connId;
-    if (!connId || !selected) return;
+    if (!connId || selected.size === 0) return;
 
-    const entry = entries.find((e) => e.path === selected);
-    if (!entry) return;
-
-    // Ask user to choose a destination folder
     const destDir = await dialogOpen({ directory: true, multiple: false, title: 'Choose download folder' });
     if (!destDir || typeof destDir !== 'string') return;
 
-    if (entry.is_dir) {
-      let files: { path: string; relative: string }[];
-      try {
-        files = await sftp.listRecursive(connId, entry.path);
-      } catch (e) {
-        setError(String(e));
-        return;
-      }
-      if (!files.length) { setProgress(null); return; }
+    const selectedEntries = entries.filter((e) => selected.has(e.path));
 
-      let done = 0;
-      for (const f of files) {
-        setProgress({ current: done + 1, total: files.length, name: f.relative });
+    // Collect all (remotePath → localPath) pairs across files and folders
+    interface DownloadItem { remotePath: string; localPath: string; }
+    const items: DownloadItem[] = [];
+
+    for (const entry of selectedEntries) {
+      if (entry.is_dir) {
         try {
-          const b64 = await sftp.read(connId, f.path);
-          // localPath = destDir / folderName / relative
-          const localPath = [destDir, entry.name, f.relative].join('/');
-          await localFs.writeFile(localPath, b64);
+          const files = await sftp.listRecursive(connId, entry.path);
+          for (const f of files) {
+            items.push({
+              remotePath: f.path,
+              localPath:  [destDir, entry.name, f.relative].join('/'),
+            });
+          }
         } catch (e) {
-          console.error('Download failed:', f.path, e);
+          console.error('List failed:', entry.path, e);
         }
-        done++;
+      } else {
+        items.push({ remotePath: entry.path, localPath: `${destDir}/${entry.name}` });
       }
-    } else {
-      setProgress({ current: 1, total: 1, name: entry.name });
+    }
+
+    if (!items.length) return;
+
+    let done = 0;
+    for (const item of items) {
+      setProgress({ current: done + 1, total: items.length, name: item.remotePath.split('/').pop() ?? '' });
       try {
-        const b64 = await sftp.read(connId, entry.path);
-        await localFs.writeFile(`${destDir}/${entry.name}`, b64);
+        const b64 = await sftp.read(connId, item.remotePath);
+        await localFs.writeFile(item.localPath, b64);
       } catch (e) {
-        setError(String(e));
+        console.error('Download failed:', item.remotePath, e);
       }
+      done++;
     }
 
     setProgress(null);
@@ -356,13 +386,12 @@ export default function SftpBrowser({ host, onClose }: Props) {
 
   async function confirmDelete() {
     if (!host.connId || !pendingDelete) return;
-    try {
-      await sftp.rmAll(host.connId, pendingDelete.path);
-    } catch (e) {
-      setError(String(e));
+    for (const entry of pendingDelete) {
+      try { await sftp.rmAll(host.connId, entry.path); }
+      catch (e) { setError(String(e)); }
     }
     setPendingDelete(null);
-    setSelected(null);
+    setSelected(new Set());
     loadDir(path);
   }
 
@@ -371,6 +400,7 @@ export default function SftpBrowser({ host, onClose }: Props) {
   const dirCount  = entries.filter((e) => e.is_dir).length;
   const fileCount = entries.filter((e) => !e.is_dir).length;
   const totalSize = entries.reduce((acc, e) => acc + e.size, 0);
+  const hasSelection = selected.size > 0;
 
   return (
     <div className={`sftp${dragActive ? ' sftp--drag-over' : ''}`}>
@@ -395,9 +425,15 @@ export default function SftpBrowser({ host, onClose }: Props) {
         <div className="sftp__confirm-overlay" onClick={() => setPendingDelete(null)}>
           <div className="sftp__confirm-box" onClick={(e) => e.stopPropagation()}>
             <p className="sftp__confirm-msg">
-              Delete <strong>{pendingDelete.name}</strong>?
-              {pendingDelete.is_dir && (
-                <span className="sftp__confirm-sub"> (and all its contents)</span>
+              {pendingDelete.length === 1 ? (
+                <>
+                  Delete <strong>{pendingDelete[0].name}</strong>?
+                  {pendingDelete[0].is_dir && (
+                    <span className="sftp__confirm-sub"> (and all its contents)</span>
+                  )}
+                </>
+              ) : (
+                <>Delete <strong>{pendingDelete.length} items</strong>?</>
               )}
             </p>
             <div className="sftp__confirm-actions">
@@ -433,25 +469,23 @@ export default function SftpBrowser({ host, onClose }: Props) {
           onClick={() => navigate(path.replace(/\/[^/]+$/, '') || '/')}
           disabled={path === '/'}><ChevronUp size={15}/></button>
         <button className="sftp__tb-btn" title="Refresh" onClick={() => loadDir(path)}><RefreshCw size={14}/></button>
-        <button className="sftp__tb-btn" title="Deselect" onClick={() => setSelected(null)}><Square size={14}/></button>
+        <button className="sftp__tb-btn" title="Deselect all" onClick={() => setSelected(new Set())}
+          disabled={!hasSelection}><Square size={14}/></button>
         <div className="sftp__tb-sep"/>
         <button className="sftp__tb-btn" title="New Folder" onClick={handleNewFolder}><FolderPlus size={15}/></button>
         <button className="sftp__tb-btn" title="Upload Files" onClick={handleUploadClick}><Upload size={15}/></button>
-        {selected && (
+        {hasSelection && (
           <>
-            <button
-              className="sftp__tb-btn"
-              title="Download"
-              onClick={handleDownload}
-            >
+            <button className="sftp__tb-btn" title={`Download ${selected.size} item${selected.size > 1 ? 's' : ''}`}
+              onClick={handleDownload}>
               <Download size={15}/>
             </button>
             <button
               className="sftp__tb-btn sftp__tb-btn--danger"
-              title="Delete"
+              title={`Delete ${selected.size} item${selected.size > 1 ? 's' : ''}`}
               onClick={() => {
-                const entry = entries.find((e) => e.path === selected);
-                if (entry) setPendingDelete(entry);
+                const toDelete = entries.filter((e) => selected.has(e.path));
+                if (toDelete.length) setPendingDelete(toDelete);
               }}
             >
               <Trash2 size={15}/>
@@ -490,8 +524,8 @@ export default function SftpBrowser({ host, onClose }: Props) {
             {entries.map((f) => (
               <li
                 key={f.path}
-                className={`sftp__row${selected === f.path ? ' sftp__row--selected' : ''}`}
-                onClick={() => setSelected(f.path)}
+                className={`sftp__row${selected.has(f.path) ? ' sftp__row--selected' : ''}`}
+                onClick={(e) => handleRowClick(e, f.path)}
                 onDoubleClick={() => { if (f.is_dir) navigate(f.path); }}
               >
                 <span className="sftp__col sftp__col--name">
@@ -507,7 +541,10 @@ export default function SftpBrowser({ host, onClose }: Props) {
       </div>
 
       <div className="sftp__footer">
-        <span>📁 {dirCount} folders, {fileCount} files</span>
+        <span>
+          📁 {dirCount} folders, {fileCount} files
+          {hasSelection && <span className="sftp__footer-sel"> · {selected.size} selected</span>}
+        </span>
         <span>{formatSize(totalSize)}</span>
       </div>
     </div>
