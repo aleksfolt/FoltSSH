@@ -35,6 +35,22 @@
 .terminal__conn-badge--closed     { color: var(--text-dim); }
 .terminal__conn-badge--error      { color: #ef5350; }
 
+.terminal__reconnect-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  margin-left: 8px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.terminal__reconnect-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
 .terminal__error-banner {
   display: flex;
   align-items: center;

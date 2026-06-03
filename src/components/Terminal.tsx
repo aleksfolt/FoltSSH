@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { Lock, AlertCircle, Loader, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Lock, AlertCircle, Loader, Search, X, ChevronUp, ChevronDown, RefreshCw } from 'lucide-react';
 import { Host, AppSettings, DEFAULT_SETTINGS } from '../types';
 import { buildTheme } from '../terminalThemes';
 import { shell } from '../api';
@@ -86,13 +86,12 @@ export default function Terminal({ host, settings, onDisconnect, isActive }: Pro
               unlistenRef.current = await openShell(connId);
             } catch {
               term.writeln('\r\n\x1b[31m[Reconnect failed]\x1b[0m');
-              onDisconnectRef.current?.();
+              // keep showing "closed" so user can retry manually
             }
           }
         }, 1000);
-      } else {
-        onDisconnectRef.current?.();
       }
+      // else: stay in "closed" state, user can click Reconnect
     }));
 
     ul.push(await listen<string>(`shell:error:${sid}`, (ev) => {
@@ -100,7 +99,7 @@ export default function Terminal({ host, settings, onDisconnect, isActive }: Pro
       setErrorMsg(ev.payload);
       ul.forEach((u) => u());
       unlistenRef.current = [];
-      onDisconnectRef.current?.();
+      // stay in "error" state, user can click Reconnect
     }));
 
     return ul;
@@ -212,6 +211,19 @@ export default function Terminal({ host, settings, onDisconnect, isActive }: Pro
     xtermRef.current?.focus();
   }
 
+  async function handleReconnect() {
+    if (!host.connId) return;
+    if (status !== 'closed' && status !== 'error') return;
+    // Re-start the shell on the existing xterm
+    try {
+      const ul = await openShell(host.connId);
+      unlistenRef.current = ul;
+      setErrorMsg('');
+    } catch (e) {
+      setErrorMsg(String(e));
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────
   return (
     <div className="terminal">
@@ -225,6 +237,11 @@ export default function Terminal({ host, settings, onDisconnect, isActive }: Pro
           {status === 'closed'     && 'closed'}
           {status === 'error'      && <><AlertCircle size={10} /> error</>}
         </span>
+        {(status === 'closed' || status === 'error') && (
+          <button className="terminal__reconnect-btn" onClick={handleReconnect} title="Reconnect">
+            <RefreshCw size={12} /> Reconnect
+          </button>
+        )}
       </div>
 
       {status === 'error' && (
